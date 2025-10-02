@@ -22,7 +22,7 @@ where:
 
 
 Notes:
-   - Implement a lexical analyser for the PL/0 language.
+   - Implement a lexical analyzer for the PL/0 language.
    - The program must detect errors such as
        - numbers longer than five digits
        - identifiers longer than eleven characters
@@ -52,7 +52,7 @@ Due Date: Friday, October 3, 2025 at 11:59 PM ET
 #define noss2 4     //total number of special double symbols
 #define imax 5      //maximum number of digits for numbers
 #define cmax 11     //maximum number of chars for identifies
-#define strmax 256  //maximum length of strings
+#define strmax 500  //maximum length of strings
 
 
 typedef enum {
@@ -94,24 +94,26 @@ typedef enum {
 
 
 typedef struct {
-   char lexeme[strmax];    //recognized element of respective token type
-   char type[strmax];      //token type in string, to display error detection
-   char list[strmax];      //stores token list of current token type
-   char error[strmax];     //stores respective error message
-   int error_flag;         //flags any error detection
+   int token;              //token type of respective lexeme
+   char lexeme[strmax];    //stores lexeme in string  
+   char list[strmax];      //stores stream of token in 'token lexeme' format
+   char error[strmax];     //stores error message
+   int error_flag;         //flags error detected during lexical analysis
 }TokenResult;
 
 
-TokenResult * createTokenArray(int maxsize);
+char * fileScanner(FILE * source_program);
 TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, int *maxsize);
+TokenResult * createTokenArray(int maxsize);
+TokenResult * doubleTokenArray(TokenResult *result, int *maxsize);
 
 
 int main(int argc, char * argv[]){
    FILE * source_program = fopen(argv[1], "r"); //reads input file from console
 
 
-   //error handling for locating file
-   if(source_program == NULL) {
+   //checks if file was not located
+   if(source_program == NULL){
        printf("Failed to locate file...\n");
        return 1;
    }
@@ -127,69 +129,18 @@ int main(int argc, char * argv[]){
    while((ch = fgetc(source_program)) != EOF){
        putchar(ch);
    }
-  
-   rewind(source_program); //returns file point to the beginning of input file
 
 
-   int scanner_maxsize = 100;
-   int scanner_cursize = 0;
+   rewind(source_program); //returns file pointer to start of input file
 
 
-   //initializes string array to store all non-invisible characters from input file
-   char *scanner = malloc(sizeof(char) * scanner_maxsize);
+   char * scanner = fileScanner(source_program);
 
 
-   //error handling memory allocation
-   if(scanner == NULL) {
-       printf("malloc() error in main()...\n");
-       exit(1);
-   }
+   int maxsize = 500;
+   int cursize = 0;
 
 
-   while((ch = fgetc(source_program)) != EOF){
-
-
-       //allocates more memory to struct array
-       if(scanner_cursize + 1 >= scanner_maxsize){
-           scanner_maxsize = scanner_maxsize * 2;
-           char *temp_scanner = realloc(scanner, sizeof(char) * scanner_maxsize);
-
-
-           //error handling memory re-allocation
-           if(temp_scanner == NULL) {
-               printf("realloc() error in main()...\n");
-               exit(1);
-           }
-           scanner = temp_scanner;
-       }
-
-
-       //scanner skips through invisible characters
-       if(!isspace(ch) && !iscntrl(ch)){
-           scanner[scanner_cursize++] = ch;
-       }
-   }
-
-
-   if(scanner_cursize + 1 >= scanner_maxsize){
-       scanner_maxsize = scanner_maxsize * 2;
-       char *temp_scanner = realloc(scanner, sizeof(char) * scanner_maxsize);
-
-
-       if(temp_scanner == NULL){
-           printf("realloc() in main() failed...\n");
-           exit(1);
-       }
-       scanner = temp_scanner;
-   }
-   scanner[scanner_cursize++] = '\0';
-
-
-   int maxsize = 100;  //declares initial maximum size of struct array
-   int cursize = 0;    //declares initial current size of struct array
-
-
-   //initializes array struct to store all tokens to their respective lexeme
    TokenResult *result = createTokenArray(maxsize);
    result = lexicalAnalyzer(result, scanner, &cursize, &maxsize);
 
@@ -198,8 +149,8 @@ int main(int argc, char * argv[]){
    printf("lexeme\t\ttoken type\n");
   
    for(int i = 0; i < cursize; i++){
-       if(result[i].error_flag != 1){
-           printf("%-10s\t%s\n", result[i].lexeme, result[i].type);
+       if(result[i].error_flag == 0){
+           printf("%-10s\t%d\n", result[i].lexeme, result[i].token);
        }
        else{
            printf("%-10s\t%s\n", result[i].lexeme, result[i].error);
@@ -213,12 +164,10 @@ int main(int argc, char * argv[]){
        printf("%s ", result[i].list);
    }
    printf("\n");
-
-
+  
    free(scanner);
    free(result);
    fclose(source_program);
-  
    return 0;
 }
 
@@ -254,118 +203,119 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
        symbol_flag = 0;
 
 
-       //allocates more memory to struct array
-       if(*cursize + 1 >= *maxsize){
-           *maxsize = *maxsize * 2;
-           TokenResult * temp_result = realloc(result, sizeof(TokenResult) * *maxsize);
-
-
-           //error handling memory re-allocation
-           if(temp_result == NULL){
-               printf("realloc() error in lexicalAnalyzer()...\n");
-               exit(1);
-           }
-
-
-           result = temp_result;
-          
+       //allocates more memory to TokenResult struct array
+       if(*cursize >= *maxsize){
+           result = doubleTokenArray(result, maxsize);
        }
 
 
+       //checks alphabetic characters for reserved words and identifiers
        if(isalpha(scanner[index])){
 
 
-           //checks and tokenizes reserved words
+           //tokenizes found reserved word
            for(int i = 0; i < norw; i++){
-               int len = strlen(reserved_word[i]);
+               int len = strlen(reserved_word[i]); //declares length of each reserved word
 
 
                if(index + len <= scanner_size && strncmp(reserved_word[i], &scanner[index], len) == 0){
-                   word_flag = 1;
-  
+                   word_flag = 1; //flags reserved word match
+
+
+                   //stores lexeme, token type, and token list in result struct array
                    strcpy(result[*cursize].lexeme, reserved_word[i]);
-                   sprintf(result[*cursize].type, "%d", wsym[i]);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+                   result[*cursize].token = wsym[i];
+                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
+                   //flags and stores no error found
                    result[*cursize].error_flag = 0;
+                   strcpy(result[*cursize].error, "");
 
 
-                   *cursize = *cursize + 1;
-                   index = index + len;
-                   break; //exits loop if a reserved word match was found
+                   *cursize = *cursize + 1; //increments struct array index for next element
+                   index = index + len;     //increments index to next char after reserved word
+
+
+                   break; //exits loop if a reserved word match is found
                }
            }
-          
+
+
            //checks for valid and invalid identifiers
-           if(word_flag != 1){
+           if(word_flag != 1 && isalpha(scanner[index])){
                int id_start = index;
-               int id_end = 0;
+               int id_end = index;
                int i = index;
 
 
-               //traverses scanner to track the entire identifier
+               //traverses scanner to track the length of identifier
                while(i <= scanner_size && isalnum(scanner[i])){
-                  
-                   int word_match = 0;
-                  
-                   //checks to see if there is a reserved word between identifiers
-                   for(int x = 0; x < norw; x++) {
+                   word_flag = 0;
+
+
+                   //checks for reserved word in between identifiers
+                   for(int x = 0; x < norw; x++){
                        int len = strlen(reserved_word[x]);
 
 
                        if(i + len <= scanner_size && strncmp(reserved_word[x], &scanner[i], len) == 0){
-                           word_match = 1;
-                           break; //exits for loop if match is found
+                           word_flag = 1;
+                           break; //exits for loop if a reserved word match is found
                        }
                    }
 
 
-                   //exits while loop to tokenize reserved word during the next iteration of outermost while loop
-                   if(word_match == 1) {
+                   //exits while loop to tokenize identifier before the reserved word match
+                   if(word_flag == 1){
                        break;
                    }
-                  
                    i++;
                }
 
 
                id_end = i;
-               int id_len = id_end - id_start; //calculates the length of identifier
+               int id_len = id_end - id_start; //calculates length of identifier
 
 
                //checks if identifier follows length constraints
                if(id_len <= cmax){
+
+
+                   //declares a string variable and stores identifier
                    char identifier[cmax + 1];
                    strncpy(identifier, &scanner[id_start], id_len);
                    identifier[id_len] = '\0';
 
 
+                   //stores valid identifier and its token in struct array
                    strcpy(result[*cursize].lexeme, identifier);
-                   sprintf(result[*cursize].type, "%d", identsym);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+                   result[*cursize].token = identsym;
+                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
                    strcat(result[*cursize].list, " ");
                    strcat(result[*cursize].list, result[*cursize].lexeme);
 
 
                    result[*cursize].error_flag = 0;
+                   strcpy(result[*cursize].error, "");
 
 
                    *cursize = *cursize + 1;
                    index = id_end;
                }
-               //detects and stores lexical error for identifier
                else{
                    char identifier[strmax];
                    strncpy(identifier, &scanner[id_start], id_len);
                    identifier[id_len] = '\0';
 
 
+                   //stores lexical error for identifier in struct array
                    strcpy(result[*cursize].lexeme, identifier);
-                   sprintf(result[*cursize].type, "%d", skipsym);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+                   result[*cursize].token = skipsym;
+                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
+                   //flags error and stores error type
                    result[*cursize].error_flag = 1;
                    strcpy(result[*cursize].error, "Identifier too long");
 
@@ -380,11 +330,11 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
        //checks for valid and invalid numbers
        if(isdigit(scanner[index])){
            int num_start = index;
-           int num_end = 0;
+           int num_end = index;
            int i = index;
 
 
-           //traverses scanner to track the entire number
+           //traverses scanner to track length of number
            while(i <= scanner_size && isdigit(scanner[i])){
                i++;
            }
@@ -396,56 +346,65 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 
            //checks if number follows length constraints
            if(num_len <= imax){
+
+
+               //declares a string variable and stores number
                char number[imax + 1];
                strncpy(number, &scanner[num_start], num_len);
                number[num_len] = '\0';
 
 
+               //stores valid number and its token in struct array
                strcpy(result[*cursize].lexeme, number);
-               sprintf(result[*cursize].type, "%d", numbersym);
-               strcpy(result[*cursize].list, result[*cursize].type);
+               result[*cursize].token = numbersym;
+               sprintf(result[*cursize].list, "%d", result[*cursize].token);
                strcat(result[*cursize].list, " ");
                strcat(result[*cursize].list, result[*cursize].lexeme);
 
 
                result[*cursize].error_flag = 0;
+               strcpy(result[*cursize].error, "");
 
 
                *cursize = *cursize + 1;
                index = num_end;
            }
-           //detects and stores lexical error for number
            else{
                char number[strmax];
                strncpy(number, &scanner[num_start], num_len);
                number[num_len] = '\0';
 
 
+               //stores lexical error for number in struct array
                strcpy(result[*cursize].lexeme, number);
-               sprintf(result[*cursize].type, "%d", skipsym);
-               strcpy(result[*cursize].list, result[*cursize].type);
+               result[*cursize].token = skipsym;
+               sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
+               //flags error and stores error type
                result[*cursize].error_flag = 1;
                strcpy(result[*cursize].error, "Number too long");
 
 
                *cursize = *cursize + 1;
-               index = num_end;  
+               index = num_end;
            }
        }
 
 
+       //checks for comments, special symbols, and invalid symbols
        if(ispunct(scanner[index])){
-
-
-           //checks for block comment and ignores comments if found
-           if(scanner[index] == '/'){ 
+          
+           //checks for comment delimeters and ignores comment if found
+           if(scanner[index] == '/'){
                if(index + 1 <= scanner_size && scanner[index + 1] == '*'){
+
+
+                   //traverses comment until end comment symbols "*/" are found
                    for(int i = index + 2; i < scanner_size; i++){
                        if(i + 1 <= scanner_size && scanner[i] == '*' && scanner[i + 1] == '/'){
-                           index = i + 2;
-                           break;
+                           index = i + 2; //increments index to ignore entire comment
+                           break;         //exits for loop after entire comment is skipped
                        }
                    }
                }
@@ -454,16 +413,17 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 
            //checks for special double symbols
            for(int i = 0; i < noss2; i++){
-               int len = strlen(double_symbols[i]);
+               int len = 2;
 
 
                if(index + len <= scanner_size && strncmp(double_symbols[i], &scanner[index], len) == 0){
                    symbol_flag = 1;
 
 
+                   //stores lexeme and token type of special symbol in struct
                    strcpy(result[*cursize].lexeme, double_symbols[i]);
-                   sprintf(result[*cursize].type, "%d", ssym_double[i]);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+                   result[*cursize].token = ssym_double[i];
+                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
                    result[*cursize].error_flag = 0;
@@ -477,14 +437,14 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 
 
            //checks for special single symbols
-           for(int i = 0; i < noss1; i++){ 
+           for(int i = 0; i < noss1; i++){
                if(special_symbol[i] == scanner[index]){
                    symbol_flag = 1;
 
 
                    sprintf(result[*cursize].lexeme, "%c", special_symbol[i]);
-                   sprintf(result[*cursize].type, "%d", ssym[i]);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+                   result[*cursize].token = ssym[i];
+                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
                    result[*cursize].error_flag = 0;
@@ -497,22 +457,22 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
            }
 
 
-           if(ispunct(scanner[index])) {
-              
-               //checks for and stores lexical error of invalid symbols
-               if(symbol_flag != 1) {
-                   sprintf(result[*cursize].lexeme, "%c", scanner[index]);
-                   sprintf(result[*cursize].type, "%d", skipsym);
-                   strcpy(result[*cursize].list, result[*cursize].type);
+           if(symbol_flag != 1 && ispunct(scanner[index])){
 
 
-                   result[*cursize].error_flag = 1;
-                   strcpy(result[*cursize].error, "Invalid Symbol");
+               //stores lexical error of invalid symbols
+               sprintf(result[*cursize].lexeme, "%c", scanner[index]);
+               result[*cursize].token = skipsym;
+               sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
-                   *cursize = *cursize + 1;
-                   index = index + 1;
-               }
+               //flags and store error type
+               result[*cursize].error_flag = 1;
+               strcpy(result[*cursize].error, "Invalid Symbol");
+
+
+               *cursize = *cursize + 1;
+               index = index + 1;
            }
        }
    }
@@ -520,14 +480,94 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 }
 
 
-//Function that creates an empty array of structs with dynamic memory allocation
+  
+//Function that reads input file and stores it in scanner character by character
+char * fileScanner(FILE * source_program){
+   int maxsize = 500;  //declares initial max size of scanner
+   int cursize = 0;    //declares the total number of elements in scanner
+
+
+   //dynamically allocates memory to scanner
+   char *scanner = malloc(sizeof(char) * maxsize);
+
+
+   char ch;
+
+
+   while((ch = fgetc(source_program)) != EOF){
+
+
+       //allocates more memory to scanner array
+       if(cursize >= maxsize){
+           maxsize *= 2;
+           char * temp = realloc(scanner, sizeof(char) * maxsize);
+
+
+           //checks if realloc() was unsucessful
+           if(temp == NULL){
+               printf("realloc() error in fileScanner()...\n");
+               exit(1);
+           }
+           scanner = temp;
+       }
+
+
+       //scanner skips through invisible characters
+       if(!isspace(ch) && !iscntrl(ch)){
+           scanner[cursize++] = ch; //stores input file
+       }
+   }
+
+
+   if(cursize >= maxsize){
+       maxsize *= 2;
+       char * temp = realloc(scanner, sizeof(char) * maxsize);
+
+
+       if(temp == NULL){
+           printf("realloc() error in fileScanner()...\n");
+           exit(1);
+       }
+       scanner = temp;
+   }
+   scanner[cursize++] = '\0';
+
+
+   return scanner;
+}
+
+
+//Function creates an empty TokenResult struct array
 TokenResult * createTokenArray(int maxsize){
-   TokenResult * arr = malloc(sizeof(TokenResult) * maxsize);
+   TokenResult *result = malloc(sizeof(TokenResult) * maxsize);
 
 
-   if(arr == NULL) {
+   if(result == NULL){
        printf("malloc() error in createTokenArray()...\n");
        exit(1);
    }
-   return arr;
+   return result;
 }
+
+
+
+
+//Function allocates more memory to TokenResult struct array
+TokenResult * doubleTokenArray(TokenResult *result, int *maxsize){
+   *maxsize = *maxsize * 2;
+
+
+   TokenResult *temp = realloc(result, sizeof(TokenResult) * (*maxsize));
+
+
+   if(temp == NULL){
+       printf("realloc() error in doubleTokenArray()...\n");
+       exit(1);
+   }
+   result = temp;
+
+
+   return result;
+}
+
+
