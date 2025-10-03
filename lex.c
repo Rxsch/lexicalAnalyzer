@@ -22,7 +22,7 @@ where:
 
 
 Notes:
-   - Implement a lexical analyser for the PL/0 language.
+   - Implement a lexical analyzer for the PL/0 language.
    - The program must detect errors such as
        - numbers longer than five digits
        - identifiers longer than eleven characters
@@ -134,21 +134,30 @@ int main(int argc, char * argv[]){
    rewind(source_program); //returns file pointer to start of input file
 
 
+   //function call to store input file to scanner array character by character
    char * scanner = fileScanner(source_program);
 
 
+   //declares initial size and index of struct array
    int maxsize = 500;
    int cursize = 0;
 
 
+   //function call to create an empty struct array
    TokenResult *result = createTokenArray(maxsize);
+
+
+   //function call to store lexical analyzer results
    result = lexicalAnalyzer(result, scanner, &cursize, &maxsize);
 
 
    printf("\n\nLexeme Table:\n\n");
    printf("lexeme\t\ttoken type\n");
   
+   //displays lexeme table
    for(int i = 0; i < cursize; i++){
+      
+       //checks for errors and displays each error type
        if(result[i].error_flag == 0){
            printf("%-10s\t%d\n", result[i].lexeme, result[i].token);
        }
@@ -160,14 +169,20 @@ int main(int argc, char * argv[]){
 
    printf("\nToken List:\n\n");
   
+   //displays entire token list
    for(int i = 0; i < cursize; i++){
        printf("%s ", result[i].list);
    }
    printf("\n");
   
+   //frees all dynamically allocated variables
    free(scanner);
    free(result);
-   fclose(source_program);
+
+
+   fclose(source_program); //closes input file
+
+
    return 0;
 }
 
@@ -198,6 +213,7 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
    int symbol_flag = 0;
 
 
+   //traverses through entire scanner character by character
    while(index < scanner_size){
        word_flag = 0;
        symbol_flag = 0;
@@ -219,7 +235,8 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
            }
 
 
-           index = i; //increments index to next char after invisible char
+           index = i;  //increments index to next char after invisible char
+           continue;   //returns to outermost while() to check for next non-invisible char
        }
 
 
@@ -233,25 +250,29 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 
 
                if(index + len <= scanner_size && strncmp(reserved_word[i], &scanner[index], len) == 0){
-                   word_flag = 1; //flags reserved word match
+                  
+                   //checks that reserved word is not a prefix of an identifier
+                   if(!isalnum(scanner[index + len])) {
+                       word_flag = 1; //flags reserved word match
 
 
-                   //stores lexeme, token type, and token list in result struct array
-                   strcpy(result[*cursize].lexeme, reserved_word[i]);
-                   result[*cursize].token = wsym[i];
-                   sprintf(result[*cursize].list, "%d", result[*cursize].token);
+                       //stores lexeme, token type, and token list in result struct array
+                       strcpy(result[*cursize].lexeme, reserved_word[i]);
+                       result[*cursize].token = wsym[i];
+                       sprintf(result[*cursize].list, "%d", result[*cursize].token);
 
 
-                   //flags and stores no error found
-                   result[*cursize].error_flag = 0;
-                   strcpy(result[*cursize].error, "");
+                       //flags and stores no error found
+                       result[*cursize].error_flag = 0;
+                       strcpy(result[*cursize].error, "");
 
 
-                   *cursize = *cursize + 1; //increments struct array index for next element
-                   index = index + len;     //increments index to next char after reserved word
+                       *cursize = *cursize + 1; //increments struct array index for next element
+                       index = index + len;     //increments index to next char after reserved word
 
 
-                   break; //exits loop if a reserved word match is found
+                       break; //exits loop if a reserved word match is found
+                   }
                }
            }
 
@@ -559,5 +580,3 @@ TokenResult * doubleTokenArray(TokenResult *result, int *maxsize){
 
    return result;
 }
-
-
