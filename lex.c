@@ -22,7 +22,7 @@ where:
 
 
 Notes:
-   - Implement a lexical analyzer for the PL/0 language.
+   - Implement a lexical analyser for the PL/0 language.
    - The program must detect errors such as
        - numbers longer than five digits
        - identifiers longer than eleven characters
@@ -209,6 +209,20 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
        }
 
 
+       //scanner skips through invisible characters
+       if(isspace(scanner[index]) || iscntrl(scanner[index])){
+           int i = index;
+
+
+           while(isspace(scanner[i]) || iscntrl(scanner[i])){
+               i++;
+           }
+
+
+           index = i; //increments index to next char after invisible char
+       }
+
+
        //checks alphabetic characters for reserved words and identifiers
        if(isalpha(scanner[index])){
 
@@ -251,25 +265,6 @@ TokenResult * lexicalAnalyzer(TokenResult *result, char *scanner, int *cursize, 
 
                //traverses scanner to track the length of identifier
                while(i <= scanner_size && isalnum(scanner[i])){
-                   word_flag = 0;
-
-
-                   //checks for reserved word in between identifiers
-                   for(int x = 0; x < norw; x++){
-                       int len = strlen(reserved_word[x]);
-
-
-                       if(i + len <= scanner_size && strncmp(reserved_word[x], &scanner[i], len) == 0){
-                           word_flag = 1;
-                           break; //exits for loop if a reserved word match is found
-                       }
-                   }
-
-
-                   //exits while loop to tokenize identifier before the reserved word match
-                   if(word_flag == 1){
-                       break;
-                   }
                    i++;
                }
 
@@ -512,10 +507,7 @@ char * fileScanner(FILE * source_program){
        }
 
 
-       //scanner skips through invisible characters
-       if(!isspace(ch) && !iscntrl(ch)){
-           scanner[cursize++] = ch; //stores input file
-       }
+       scanner[cursize++] = ch; //stores input file character by character
    }
 
 
@@ -548,8 +540,6 @@ TokenResult * createTokenArray(int maxsize){
    }
    return result;
 }
-
-
 
 
 //Function allocates more memory to TokenResult struct array
